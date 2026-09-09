@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Astarix — Browse the web, your way</title>
+  <meta name="description" content="Astarix is a fast, private, fully customizable desktop web browser for Windows. Dark/light themes, smart omnibox, extensions, zero telemetry.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self';">
+  <link rel="icon" href="assets/logo.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="nav">
+    <a class="brand" href="index.html"><img src="assets/logo.png" alt="Astarix logo"><strong>ASTARIX</strong></a>
+    <nav class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#shots">Screenshots</a>
+      <a href="#start">Get Started</a>
+      <a class="btn btn-ghost" href="https://github.com/mrlurix/astarix-browser">GitHub ↗</a>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <img class="hero-logo" src="assets/logo.png" alt="Astarix logo">
+      <h1>ASTARIX</h1>
+      <p class="tagline">Browse the web, your way. A fast, private browser<br>for Windows — yours to customize.</p>
+      <div class="hero-btns">
+        <a class="btn btn-primary" href="https://github.com/mrlurix/astarix-browser/releases/latest/download/Astarix-Browser-Portable.exe">Download for Windows →</a>
+        <a class="btn btn-ghost" href="https://github.com/mrlurix/astarix-browser">GitHub</a>
+      </div>
+      <div class="codebox">
+        <code id="clone-cmd">git clone https://github.com/mrlurix/astarix-browser.git</code>
+        <button id="copy-btn" title="Copy">⧉</button>
+      </div>
+      <div class="pills">
+        <span>Tabs</span><span>Omnibox</span><span>Bookmarks</span><span>History</span><span>Downloads</span><span>Extensions</span><span>Themes</span><span>Zoom</span>
+      </div>
+      <div class="stats">
+        <div class="stat"><strong>143</strong><span>Chromium engine</span></div>
+        <div class="stat"><strong>43</strong><span>Electron runtime</span></div>
+        <div class="stat"><strong>0</strong><span>Known vulnerabilities</span></div>
+        <div class="stat"><strong>1-file</strong><span>Portable, no install</span></div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section id="features" class="section">
+      <h2>Everything you need to browse</h2>
+      <div class="grid">
+        <div class="card">
+          <div class="card-icon">🗂</div>
+          <h3>Tabs &amp; navigation</h3>
+          <p>Multi-tab browsing with per-tab history, reload, keyboard shortcuts (<kbd>Ctrl+T</kbd> <kbd>Ctrl+W</kbd> <kbd>Ctrl+L</kbd>), page zoom from 30% to 300%, and a Chrome-style right-click menu.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔍</div>
+          <h3>Smart search</h3>
+          <p>One omnibox for URLs and searches. Three engines — Google, Bing, DuckDuckGo — with live suggestions and one-click engine cycling.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🎨</div>
+          <h3>Made yours</h3>
+          <p>Dark and light themes, seven accent colors, custom start page background, bookmark shortcuts, your own homepage, and a default zoom level.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🛡</div>
+          <h3>Private by design</h3>
+          <p>No account, no cloud, no telemetry. History, bookmarks, and settings stay on your machine. Risky permissions denied, downloads always ask first.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⬇</div>
+          <h3>Downloads</h3>
+          <p>Save-As flow with filename sanitization, a built-in download manager with progress states, and a custom downloads folder of your choice.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🧩</div>
+          <h3>Extensions</h3>
+          <p>Load unpacked Chromium extensions. Manifests are screened first — dangerous permissions and <code>&lt;all_urls&gt;</code> access are blocked.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screenshots -->
+    <section id="shots" class="section">
+      <h2>Take a look</h2>
+      <p class="section-sub">A faithful mockup of the real interface — try the theme switch, it works like the app.</p>
+      <div class="mock-toggle">
+        <button id="mock-theme-btn" class="btn btn-ghost">☾ Toggle light theme</button>
+      </div>
+      <div class="mock" id="mock">
+        <div class="mock-topbar">
+          <div class="mock-tabs">
+            <div class="mock-tab active"><span class="mock-favicon">A</span><span>github.com</span><span class="mock-x">✕</span></div>
+            <div class="mock-tab"><span class="mock-favicon">A</span><span>New Tab</span><span class="mock-x">✕</span></div>
+            <div class="mock-plus">+</div>
+          </div>
+          <div class="mock-wins"><span>–</span><span>▢</span><span class="mock-close">✕</span></div>
+        </div>
+        <div class="mock-toolbar">
+          <span class="mock-nav">‹</span><span class="mock-nav">›</span><span class="mock-nav">⟳</span>
+          <div class="mock-omni"><span class="mock-engine">G</span><span class="mock-url">https://github.com/mrlurix/astarix-browser</span></div>
+          <span class="mock-nav">★</span><span class="mock-nav">⋮</span>
+        </div>
+        <div class="mock-page">
+          <img class="mock-logo" src="assets/logo.png" alt="Astarix">
+          <div class="mock-h">Astarix</div>
+          <div class="mock-sub">Browse the web, your way</div>
+          <div class="mock-search"><span class="mock-engine">G</span><span class="mock-ph">Search or enter address</span></div>
+          <div class="mock-label">BOOKMARKS</div>
+          <div class="mock-shortcuts">
+            <div class="mock-sc"><span class="mock-sc-icon">G</span><span>Google</span></div>
+            <div class="mock-sc"><span class="mock-sc-icon">Y</span><span>YouTube</span></div>
+            <div class="mock-sc"><span class="mock-sc-icon">GH</span><span>GitHub</span></div>
+            <div class="mock-sc"><span class="mock-sc-icon">R</span><span>Reddit</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Steps -->
+    <section id="start" class="section">
+      <h2>Up and running in 3 steps</h2>
+      <div class="steps">
+        <div class="step"><div class="step-n">1</div><p>Download the portable <code>.exe</code> from the Releases page</p></div>
+        <div class="step"><div class="step-n">2</div><p>Double-click to run — no install, no admin rights needed</p></div>
+        <div class="step"><div class="step-n">3</div><p>Browse, then make it yours in ⚙ Settings</p></div>
+      </div>
+      <div class="hero-btns">
+        <a class="btn btn-primary" href="https://github.com/mrlurix/astarix-browser/releases/latest/download/Astarix-Browser-Portable.exe">Download for Windows →</a>
+      </div>
+      <div class="doc-links">
+        <a href="https://github.com/mrlurix/astarix-browser#build-from-source">Read the build-from-source guide →</a>
+        <a href="https://github.com/mrlurix/astarix-browser#security-model">Security model</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>Astarix · MIT License · <a href="https://github.com/mrlurix/astarix-browser">github.com/mrlurix/astarix-browser</a></span>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>

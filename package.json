@@ -1,0 +1,38 @@
+{
+  "name": "astarix-browser",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "node scripts/obfuscate.js && cd build-staging && electron-builder --win portable",
+    "build:dir": "node scripts/obfuscate.js && cd build-staging && electron-builder --win portable --dir"
+  },
+  "build": {
+    "appId": "com.astarix.browser",
+    "productName": "Astarix Browser",
+    "electronVersion": "43.3.0",
+    "afterPack": "scripts/after-pack.js",
+    "win": {
+      "target": "portable",
+      "icon": "renderer/logo.png"
+    },
+    "portable": {
+      "artifactName": "Astarix-Browser-Portable.exe"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ],
+    "directories": {
+      "output": "dist"
+    }
+  },
+  "devDependencies": {
+    "@electron/fuses": "^2.1.3",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
+    "javascript-obfuscator": "^5.5.0"
+  }
+}
