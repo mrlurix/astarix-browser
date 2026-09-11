@@ -12,6 +12,9 @@ A fast, private, and fully customizable desktop web browser for Windows — buil
 
 ![Astarix logo](docs/assets/logo.png)
 
+![Astarix main window](docs/assets/shot-main.png)
+![Astarix settings](docs/assets/shot-settings.png)
+
 ## Features
 
 **Browsing**

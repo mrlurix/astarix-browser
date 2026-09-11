@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Security — Astarix Docs</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="assets/style.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <button id="nav-toggle" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="Astarix"><b>ASTA<span>RIX</span></b></a>
+  <span class="ver">Docs</span>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/mrlurix/astarix-browser" target="_blank" rel="noopener">GitHub ↗</a>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar">
+  <input id="nav-search" type="search" placeholder="Search docs…">
+  <div class="nav-group">Getting Started</div>
+  <a href="index.html">← Home</a>
+  <a href="guide.html">Download &amp; Install</a>
+  <div class="nav-group">Customizing</div>
+  <a href="settings.html">Settings &amp; Themes</a>
+  <div class="nav-group">Reference</div>
+  <a href="security.html">Security</a>
+  <a href="faq.html">FAQ &amp; Troubleshooting</a>
+</nav>
+<main class="content">
+
+<h1><span class="z">S</span>ecurity Model</h1>
+<p class="subtitle">Hardened in two directions: the web can't reach you, and tampering can't reach the app.</p>
+
+<h2 id="protecting-you">Protecting you from the web</h2>
+<div class="callout ok">The UI runs sandboxed with context isolation, no Node integration, and a strict Content Security Policy.</div>
+<ul>
+  <li>Non-<code>http(s)</code> navigation, redirects and popups are blocked</li>
+  <li><code>webview</code> sources are restricted to <code>http(s)</code>; attached guests get preloads stripped and locked-down preferences</li>
+  <li>All rendered text (titles, URLs, suggestions, history) is HTML-escaped; stored data is schema-validated on load</li>
+</ul>
+
+<h2 id="permission-defaults">Permission defaults</h2>
+<table>
+<tr><th>Permission</th><th>Default</th></tr>
+<tr><td><code>geolocation</code>, <code>media</code> (camera/mic), <code>notifications</code></td><td><span class="badge del">Denied</span></td></tr>
+<tr><td><code>usb</code>, <code>serial</code>, <code>hid</code>, <code>bluetooth</code>, <code>midi</code>, <code>pointerLock</code></td><td><span class="badge del">Denied</span></td></tr>
+<tr><td><code>clipboard-read</code>, <code>display-capture</code>, <code>openExternal</code></td><td><span class="badge del">Denied</span></td></tr>
+<tr><td><code>fullscreen</code>, <code>clipboard-sanitized-write</code></td><td><span class="badge get">Allowed</span></td></tr>
+</table>
+
+<h2 id="protecting-the-app">Protecting the app</h2>
+<table>
+<tr><th>Layer</th><th>What it does</th></tr>
+<tr><td>Obfuscation</td><td>Production JS is obfuscated (control-flow flattening, string encryption)</td></tr>
+<tr><td>Electron Fuses</td><td><code>RunAsNode</code> off, Node-options/CLI-inspect disabled, asar integrity on, load-from-asar only</td></tr>
+<tr><td>Switch blocking</td><td>Remote-debugging, insecure-content and isolation-disabling flags exit the app at startup</td></tr>
+</table>
+<div class="callout info">In-app DevTools (<code>F12</code>) stay available to you. Only remote attachment from other processes is blocked.</div>
+
+<h2 id="extension-screening">Extension screening</h2>
+<p>Manifests are inspected <b>before</b> an extension loads. Blocked:</p>
+<ul>
+  <li>Dangerous permissions: <code>nativeMessaging</code>, <code>webRequestBlocking</code>, <code>proxy</code>, <code>debugger</code>, <code>management</code>, <code>browsingData</code>, <code>privacy</code>, <code>cookies</code>, <code>downloads</code>, <code>declarativeNetRequest*</code></li>
+  <li>Broad host access: <code>&lt;all_urls&gt;</code> and <code>*://*/*</code> in permissions or content-script matches</li>
+</ul>
+
+<h2 id="downloads">Downloads</h2>
+<ul>
+  <li>Every download opens a Save dialog — silent drive-by downloads are impossible</li>
+  <li>Filenames are sanitized: no path traversal, no control characters, no reserved Windows names</li>
+</ul>
+
+</main>
+</div>
+<footer>Astarix · MIT License · <a href="https://github.com/mrlurix/astarix-browser">github.com/mrlurix/astarix-browser</a></footer>
+<script src="assets/docs.js?v=1"></script>
+</body>
+</html>

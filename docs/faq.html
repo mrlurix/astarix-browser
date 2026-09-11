@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="no-referrer">
+<title>FAQ &amp; Troubleshooting — Astarix Docs</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="assets/style.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <button id="nav-toggle" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="Astarix"><b>ASTA<span>RIX</span></b></a>
+  <span class="ver">Docs</span>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/mrlurix/astarix-browser" target="_blank" rel="noopener">GitHub ↗</a>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar">
+  <input id="nav-search" type="search" placeholder="Search docs…">
+  <div class="nav-group">Getting Started</div>
+  <a href="index.html">← Home</a>
+  <a href="guide.html">Download &amp; Install</a>
+  <div class="nav-group">Customizing</div>
+  <a href="settings.html">Settings &amp; Themes</a>
+  <div class="nav-group">Reference</div>
+  <a href="security.html">Security</a>
+  <a href="faq.html">FAQ &amp; Troubleshooting</a>
+</nav>
+<main class="content">
+
+<h1><span class="z">F</span>AQ &amp; Troubleshooting</h1>
+<p class="subtitle">Short answers to common questions.</p>
+
+<h2 id="where-is-my-data">Where is my data stored?</h2>
+<p>History, bookmarks, extensions and settings stay on your machine in the app profile. Nothing is uploaded anywhere — there is no account and no telemetry.</p>
+
+<h2 id="smartscreen-warning">Windows shows a SmartScreen warning?</h2>
+<p>The portable build is unsigned, so SmartScreen may warn on first run.</p>
+<div class="callout warn">This is expected for unsigned software. Click <code>More info</code>, then <code>Run anyway</code> — or build from source if you prefer.</div>
+
+<h2 id="chrome-web-store">Can I install extensions from the Chrome Web Store?</h2>
+<p>No. Only unpacked extension folders can be loaded (<code>⋮ → Extensions → Load Extension</code>), and each manifest is screened for dangerous permissions first.</p>
+
+<h2 id="ftp-support">FTP support?</h2>
+<p>No. Astarix supports <code>http</code> and <code>https</code> only — anything else in the address bar becomes a search.</p>
+
+<h2 id="developer-tools">Developer tools?</h2>
+<p>Yes. Press <code>F12</code> (or <code>Ctrl+Shift+I</code>, or menu → Developer Tools) to inspect the current page.</p>
+
+<h2 id="other-platforms">Linux or macOS builds?</h2>
+<p>Only Windows x64 portable builds are published for now.</p>
+
+<h2 id="reset-everything">How do I reset everything?</h2>
+<p>Open <code>⚙ Settings → Reset All Settings</code> for the options. For a completely fresh start, quit the browser and delete the profile folder (<code>%APPDATA%\Astarix Browser</code>).</p>
+
+</main>
+</div>
+<footer>Astarix · MIT License · <a href="https://github.com/mrlurix/astarix-browser">github.com/mrlurix/astarix-browser</a></footer>
+<script src="assets/docs.js?v=1"></script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="no-referrer">
+<title>Download &amp; Install — Astarix Docs</title>
+<link rel="icon" href="assets/logo.png">
+<link rel="stylesheet" href="assets/style.css?v=1">
+</head>
+<body>
+<header class="topbar">
+  <button id="nav-toggle" aria-label="Menu">☰</button>
+  <a class="brand" href="index.html"><img src="assets/logo.png" alt="Astarix"><b>ASTA<span>RIX</span></b></a>
+  <span class="ver">Docs</span>
+  <span class="spacer"></span>
+  <a class="gh" href="https://github.com/mrlurix/astarix-browser" target="_blank" rel="noopener">GitHub ↗</a>
+</header>
+<div class="layout">
+<nav class="sidebar" id="sidebar">
+  <input id="nav-search" type="search" placeholder="Search docs…">
+  <div class="nav-group">Getting Started</div>
+  <a href="index.html">← Home</a>
+  <a href="guide.html">Download &amp; Install</a>
+  <div class="nav-group">Customizing</div>
+  <a href="settings.html">Settings &amp; Themes</a>
+  <div class="nav-group">Reference</div>
+  <a href="security.html">Security</a>
+  <a href="faq.html">FAQ &amp; Troubleshooting</a>
+</nav>
+<main class="content">
+
+<h1><span class="z">A</span>STARIX Download &amp; Install</h1>
+<p class="subtitle">From download to browsing in about a minute.</p>
+
+<h2 id="requirements">Requirements</h2>
+<ul>
+  <li>Windows 10 or 11, x64</li>
+  <li>About 250 MB of free disk space</li>
+  <li>No administrator rights needed</li>
+</ul>
+
+<h2 id="download">Download</h2>
+<p>Grab the latest portable build from the <a href="https://github.com/mrlurix/astarix-browser/releases/latest">Releases page</a>:</p>
+<table>
+<tr><th>Asset</th><th>What it is</th></tr>
+<tr><td><code>Astarix-Browser-Portable.exe</code></td><td>The browser, single file (~90 MB)</td></tr>
+</table>
+
+<h2 id="run-portable">Run portable</h2>
+<ol>
+  <li>Download <code>Astarix-Browser-Portable.exe</code></li>
+  <li>Double-click it — no installation, no setup wizard</li>
+  <li>A new tab opens. Type a URL or a search in the address bar and browse</li>
+</ol>
+<div class="callout info">Portable means the program is one file. Your profile (history, bookmarks, settings) is stored separately on your machine, so replacing the exe never deletes your data.</div>
+
+<h2 id="build-from-source">Build from source</h2>
+<p>Requirements: <code>Node.js</code> 18+ and npm.</p>
+<pre>git clone https://github.com/mrlurix/astarix-browser.git
+cd astarix-browser
+npm install
+npm start        # run in development mode</pre>
+<pre>npm run build    # obfuscate + package the portable exe</pre>
+<div class="callout info">The packaged exe lands in <code>build-staging/dist/Astarix-Browser-Portable.exe</code>. If <code>npm install</code> skips Electron's postinstall step, run <code>node install.js</code> once inside <code>node_modules/electron</code> to fetch the binary.</div>
+
+<h2 id="update">Update</h2>
+<ol>
+  <li>Download the newer <code>Astarix-Browser-Portable.exe</code> from Releases</li>
+  <li>Replace the old file. Your profile and settings are kept</li>
+</ol>
+
+<h2 id="uninstall">Uninstall</h2>
+<pre>del Astarix-Browser-Portable.exe</pre>
+<p>To also wipe your profile (history, bookmarks, settings), delete the data folder:</p>
+<pre>rmdir /s "%APPDATA%\Astarix Browser"</pre>
+
+</main>
+</div>
+<footer>Astarix · MIT License · <a href="https://github.com/mrlurix/astarix-browser">github.com/mrlurix/astarix-browser</a></footer>
+<script src="assets/docs.js?v=1"></script>
+</body>
+</html>
