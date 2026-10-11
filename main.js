@@ -58,13 +58,34 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
-app.commandLine.appendSwitch('js-flags', '--max-old-space-size=1024');
-app.commandLine.appendSwitch('disable-features', 'Translate,MediaRouter,CalculateNativeWinOcclusion');
-app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
+// -- Resource tuning ------------------------------------------------
+// The app targets weak machines first: background services stay off,
+// caches stay small, and low-end hardware gets an extra-tight budget.
+const os = require('os');
+const totalMemGB = os.totalmem() / (1024 * 1024 * 1024);
+const coreCount = os.cpus().length;
+const LOW_END = coreCount <= 2 || totalMemGB <= 4;
+
 app.commandLine.appendSwitch('disable-component-update');
 app.commandLine.appendSwitch('disable-domain-reliability');
 app.commandLine.appendSwitch('disable-sync');
 app.commandLine.appendSwitch('no-first-run');
+
+if (LOW_END) {
+  // Tight memory + single raster thread: keeps paging down on old CPUs.
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=384');
+  app.commandLine.appendSwitch('disk-cache-size', String(16 * 1024 * 1024));
+  app.commandLine.appendSwitch('renderer-process-limit', '1');
+  app.commandLine.appendSwitch('num-raster-threads', '1');
+  app.commandLine.appendSwitch('disable-partial-raster');
+  app.commandLine.appendSwitch('disable-features',
+    'Translate,MediaRouter,CalculateNativeWinOcclusion,BackForwardCache,LazyFrameLoading,ExtensionManifestV2Disabled');
+  console.log('Low-end mode enabled: cores=' + coreCount + ' ram=' + totalMemGB.toFixed(1) + 'GB');
+} else {
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=1024');
+  app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
+  app.commandLine.appendSwitch('disable-features', 'Translate,MediaRouter,CalculateNativeWinOcclusion');
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({

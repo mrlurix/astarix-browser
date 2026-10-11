@@ -54,6 +54,13 @@ fs.copyFileSync(path.join(root, 'scripts', 'after-pack.js'), path.join(staging, 
 obfuscateFile(path.join(staging, 'main.js'));
 obfuscateFile(path.join(staging, 'preload.js'));
 obfuscateFile(path.join(staging, 'renderer', 'app.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'rn.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'store.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'config.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'dom.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'state.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'ui.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'panels.js'));
 
 try {
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(staging, 'node_modules'), 'junction');

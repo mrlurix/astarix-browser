@@ -173,6 +173,17 @@
         <div class="setting-row"><span>Downloads folder</span><input type="text" id="set-downloads" placeholder="C:\Users\You\Downloads"></div>
       </div>
 
+      <div class="settings-section">
+        <div class="settings-section-title">Performance</div>
+        <div class="setting-row"><span>Performance mode</span>
+          <select id="set-perf">
+            <option value="auto">Auto</option>
+            <option value="on">On (low-end PCs)</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+      </div>
+
       <button class="settings-reset" id="set-reset">Reset All Settings</button>
     </div>
   </div>
@@ -198,6 +209,14 @@
     <div class="menu-item close-menu" data-action="exit"><div class="mi-icon">✕</div><span>Exit</span></div>
   </div>
 
+  <!-- Layered architecture: primitives -> store -> config -> dom -> state -> ui -> panels -> app -->
+  <script src="core/rn.js"></script>
+  <script src="core/store.js"></script>
+  <script src="core/config.js"></script>
+  <script src="core/dom.js"></script>
+  <script src="core/state.js"></script>
+  <script src="core/ui.js"></script>
+  <script src="core/panels.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -780,3 +780,36 @@ body.light {
 }
 
 .settings-reset:hover { background: rgba(239, 68, 68, 0.12); color: #ef4444; border-color: rgba(239, 68, 68, 0.4); }
+
+/* -- Performance mode (weak devices) -------------------------
+   Enabled automatically when the machine reports <=2 CPU cores
+   or <=2 GB RAM, or manually via Settings > Performance mode.
+   Removes compositing-heavy effects (blur, shadows, animations)
+   so the UI stays responsive on integrated/old GPUs.        */
+body.perf-lite *,
+body.perf-lite *::before,
+body.perf-lite *::after {
+  animation: none !important;
+  transition: none !important;
+}
+
+body.perf-lite #omnibox,
+body.perf-lite #ntp-search {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+body.perf-lite #hamburger-menu {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: var(--bg-tertiary);
+}
+
+body.perf-lite #ntp-logo-glow { display: none; }
+
+body.perf-lite .side-panel { box-shadow: none; }
+body.perf-lite .hero-logo,
+body.perf-lite .nav-btn:active,
+body.perf-lite .win-btn { transform: none; }
+body.perf-lite .shortcut:hover,
+body.perf-lite .sc-icon { box-shadow: none !important; }
