@@ -1,9 +1,12 @@
-const { app, BrowserWindow, session, ipcMain, dialog, webContents, Menu, clipboard } = require('electron');
+﻿const { app, BrowserWindow, session, ipcMain, dialog, webContents, Menu, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
 let mainWindow;
-let pendingSavePath = null;
+// A single pending save path was a race: any other download that started in
+// the same window could consume it. It is now bound to one exact URL and
+// expires quickly, so an unrelated download can never be written there.
+let pendingSave = null; // { path, url, ts }
 let customDownloadsDir = '';
 
 const blockedSwitches = [
@@ -155,7 +158,7 @@ function attachContextMenu(contents) {
               defaultPath: path.join(customDownloadsDir || app.getPath('downloads'), defaultName),
             });
             if (canceled || !filePath) return;
-            pendingSavePath = filePath;
+            pendingSave = { path: filePath, url: imgUrl, ts: Date.now() };
             contents.downloadURL(imgUrl);
           },
         });
@@ -193,17 +196,23 @@ function attachContextMenu(contents) {
 app.on('web-contents-created', (_event, contents) => {
   attachContextMenu(contents);
   if (contents.getType() === 'webview') {
+    // Defence in depth: the renderer also guards these, but the main process
+    // is the authority that cannot be bypassed by page script.
+    const isHttp = (u) => typeof u === 'string' && (u.startsWith('http://') || u.startsWith('https://'));
     contents.on('will-redirect', (event, url) => {
-      if (!url.startsWith('http://') && !url.startsWith('https://')) event.preventDefault();
+      if (!isHttp(url)) event.preventDefault();
+    });
+    contents.on('will-navigate', (event, url) => {
+      if (!isHttp(url)) event.preventDefault();
     });
     return;
   }
 
   contents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  contents.on('will-navigate', (event, url) => {
-    try { const p = new URL(url).protocol; if (p !== 'http:' && p !== 'https:') event.preventDefault(); }
-    catch { event.preventDefault(); }
-  });
+  // The chrome window only ever shows our own local UI. Programmatic loads
+  // (loadFile) do not emit will-navigate, so blocking every navigation here is
+  // safe and prevents a remote page from ever inheriting the preload bridge.
+  contents.on('will-navigate', (event) => event.preventDefault());
   contents.on('will-attach-webview', (event, webPreferences, params) => {
     const src = params && params.src;
     if (src && !src.startsWith('http://') && !src.startsWith('https://')) {
@@ -223,16 +232,29 @@ app.on('web-contents-created', (_event, contents) => {
   });
 });
 
-ipcMain.on('minimize', () => mainWindow?.minimize());
-ipcMain.on('maximize', () => {
+// Only the app's own top-level frame may talk to the main process.
+function isTrustedSender(event) {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  const wc = mainWindow.webContents;
+  if (event.sender !== wc) return false;
+  if (event.senderFrame && event.senderFrame !== wc.mainFrame) return false;
+  return true;
+}
+
+ipcMain.on('minimize', (event) => { if (isTrustedSender(event)) mainWindow?.minimize(); });
+ipcMain.on('maximize', (event) => {
+  if (!isTrustedSender(event)) return;
   if (mainWindow?.isMaximized()) mainWindow.unmaximize();
   else mainWindow?.maximize();
 });
-ipcMain.on('close', () => mainWindow?.close());
-ipcMain.handle('isMaximized', () => mainWindow?.isMaximized());
+ipcMain.on('close', (event) => { if (isTrustedSender(event)) mainWindow?.close(); });
+ipcMain.handle('isMaximized', (event) => (isTrustedSender(event) ? !!mainWindow?.isMaximized() : false));
 function sanitizeFilename(name) {
   let n = path.basename(String(name || 'download'));
-  n = n.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\.+$/, '').replace(/^\.+/, '');
+  // Windows strips trailing dots and spaces, which can turn a harmless name
+  // into a reserved device name (e.g. "CON " -> "CON").
+  n = n.replace(/[. ]+$/, '');
+  n = n.replace(/^[. ]+/, '');
   if (!n) n = 'download';
   const reserved = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$/i;
   if (reserved.test(n)) n = '_' + n;
@@ -240,7 +262,8 @@ function sanitizeFilename(name) {
   return n;
 }
 
-ipcMain.on('set-downloads-folder', (_e, dir) => {
+ipcMain.on('set-downloads-folder', (event, dir) => {
+  if (!isTrustedSender(event)) return;
   if (typeof dir !== 'string') return;
   const t = dir.trim();
   if (!t || t.length > 260 || t.includes('\0')) return;
@@ -248,8 +271,9 @@ ipcMain.on('set-downloads-folder', (_e, dir) => {
   customDownloadsDir = path.normalize(t);
 });
 
-ipcMain.on('open-webview-devtools', () => {
-  if (!mainWindow) return;
+ipcMain.on('open-webview-devtools', (event) => {
+  if (!isTrustedSender(event)) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
   const all = webContents.getAllWebContents();
   for (const wc of all) {
     if (wc.hostWebContents && wc.hostWebContents.id === mainWindow.webContents.id) {
@@ -259,7 +283,8 @@ ipcMain.on('open-webview-devtools', () => {
   }
 });
 
-ipcMain.handle('load-extension', async () => {
+ipcMain.handle('load-extension', async (event) => {
+  if (!isTrustedSender(event)) return null;
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ['openDirectory'],
     title: 'Select Extension Folder',
@@ -277,20 +302,40 @@ ipcMain.handle('load-extension', async () => {
     const optPerms = Array.isArray(manifest.optional_permissions) ? manifest.optional_permissions : [];
     const optHostPerms = Array.isArray(manifest.optional_host_permissions) ? manifest.optional_host_permissions : [];
     const allPerms = [...permissions, ...hostPerms, ...optPerms, ...optHostPerms];
-    const dangerousPerms = ['nativeMessaging', 'webRequestBlocking', 'proxy', 'debugger', 'management', 'browsingData', 'privacy', 'cookies', 'downloads', 'declarativeNetRequest', 'declarativeNetRequestWithHostAccess'];
-    if (allPerms.some(p => dangerousPerms.includes(p))) {
+    // Permissions are compared case-insensitively on the trimmed value: an
+    // exact-match deny-list is trivially bypassed with "NativeMessaging".
+    const dangerousPerms = new Set([
+      'nativemessaging', 'webrequestblocking', 'proxy', 'debugger', 'management',
+      'browsingdata', 'privacy', 'cookies', 'downloads', 'declarativenetrequest',
+      'declarativenetrequestwithhostaccess', 'systemdisplay', 'webnfc',
+      'backgroundsync', 'clipboardread', 'identity', 'sessions', 'topsites',
+      'webnavigation', 'tabcapture', 'desktopcapture', 'pagecapture',
+    ]);
+    const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+    const permsNormalized = allPerms.map(norm).filter(Boolean);
+
+    if (permsNormalized.some(p => dangerousPerms.has(p))) {
       return { error: 'Extension requests dangerous permissions and was blocked' };
     }
-    if (allPerms.some(p => p === '<all_urls>' || p === '*://*/*')) {
+
+    // Broad host access: any scheme wildcard that reaches every origin.
+    const broad = (p) =>
+      p === '<all_urls>' || p === '*' ||
+      /^\*?:\/\/\*(\/\*)?$/.test(p) ||
+      /^(file|ftp|ws|wss):\/\/\*(\/\*)?$/.test(p) ||
+      /^\*:\/\*\/\*$/.test(p);
+    if (permsNormalized.some(broad)) {
       return { error: 'Extension requests overly broad host permissions and was blocked' };
     }
+
     const contentScripts = Array.isArray(manifest.content_scripts) ? manifest.content_scripts : [];
     for (const cs of contentScripts) {
-      const matches = Array.isArray(cs.matches) ? cs.matches : [];
-      if (matches.some(m => m === '<all_urls>' || m === '*://*/*')) {
+      const matches = (Array.isArray(cs.matches) ? cs.matches : []).map(norm).filter(Boolean);
+      if (matches.some(broad)) {
         return { error: 'Extension content scripts request overly broad host access and was blocked' };
       }
     }
+
     if (typeof manifest.name === 'string' && manifest.name.length > 100) manifest.name = manifest.name.slice(0, 100);
     await session.defaultSession.loadExtension(extPath);
     return { name: (typeof manifest.name === 'string' ? manifest.name : 'Unnamed Extension'), path: extPath };
@@ -302,15 +347,32 @@ ipcMain.handle('load-extension', async () => {
 app.whenReady().then(() => {
   session.defaultSession.setSpellCheckerEnabled(false);
 
-  const dangerous = ['media', 'geolocation', 'notifications', 'midi', 'midiSysex', 'pointerLock', 'openExternal', 'serial', 'usb', 'bluetooth', 'hid', 'clipboard-read', 'display-capture'];
-  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(!dangerous.includes(permission)));
-  session.defaultSession.setPermissionCheckHandler((wc, permission) => !dangerous.includes(permission));
+  // Default-deny. A deny-list would silently grant any permission a future
+  // Chromium update introduces, so only the handful of harmless ones pass.
+  const ALLOWED_PERMISSIONS = new Set([
+    'fullscreen',
+    'clipboard-sanitized-write',
+    'clipboard-write',
+    'mediaKeySystem',
+    'idle-detection',
+  ]);
+  const isAllowed = (permission) => ALLOWED_PERMISSIONS.has(permission);
+
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback) => callback(isAllowed(permission)));
+  session.defaultSession.setPermissionCheckHandler((wc, permission) => isAllowed(permission));
 
   session.defaultSession.on('will-download', async (e, item) => {
-    let savePath = pendingSavePath;
-    if (savePath) {
-      pendingSavePath = null;
-    } else {
+    let savePath = null;
+
+    // Use the pre-approved path only when it belongs to THIS download and is
+    // still fresh. Otherwise the user is asked, so an unrelated download can
+    // never be silently redirected into the chosen file.
+    const p = pendingSave;
+    if (p) {
+      pendingSave = null;
+      if (Date.now() - p.ts < 30000 && item.getURL() === p.url) savePath = p.path;
+    }
+    if (!savePath) {
       const safeName = sanitizeFilename(item.getFilename());
       const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
         title: 'Save File',
@@ -319,11 +381,17 @@ app.whenReady().then(() => {
       if (canceled || !filePath) { e.preventDefault(); return; }
       savePath = filePath;
     }
+
     item.setSavePath(savePath);
-    const filename = item.getFilename();
-    mainWindow.webContents.send('download-start', { filename, url: item.getURL() });
+
+    const win = mainWindow;
+    if (!win || win.isDestroyed()) return;
+    const filename = String(item.getFilename() || 'download').slice(0, 100);
+    const url = String(item.getURL() || '').slice(0, 2000);
+    win.webContents.send('download-start', { filename, url });
     item.on('done', (event, state) => {
-      mainWindow.webContents.send('download-done', { filename, completed: state === 'completed' });
+      if (win.isDestroyed()) return;
+      win.webContents.send('download-done', { filename, completed: state === 'completed' });
     });
   });
 
