@@ -1,4 +1,4 @@
-// ─────────────────────────────────────────────────────────────
+﻿// ─────────────────────────────────────────────────────────────
 // App bootstrap — wiring only. All logic lives in core modules:
 //   core/rn.js       RN-style primitives (View/Text/Pressable)
 //   core/store.js    reactive store + emitter (batched notify)

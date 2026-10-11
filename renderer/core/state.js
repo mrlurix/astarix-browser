@@ -232,6 +232,10 @@ window.Astarix = window.Astarix || {};
     store.set({ settings: next });
     persistSettings();
     applySettings();
+    // Always resync the form: sanitization may have replaced a value, so the
+    // controls must never drift from the stored state. This is a handful of
+    // property writes on existing nodes, so it stays cheap.
+    if (A.ui && A.ui.renderSettings) A.ui.renderSettings();
   }
 
   function resetSettings() {
@@ -239,6 +243,7 @@ window.Astarix = window.Astarix || {};
     store.set({ settings: next });
     persistSettings();
     applySettings();
+    if (A.ui && A.ui.renderSettings) A.ui.renderSettings();
   }
 
   function applySettings() {
