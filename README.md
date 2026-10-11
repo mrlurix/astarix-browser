@@ -76,18 +76,52 @@ npm run build    # obfuscate + package -> build-staging/dist/Astarix-Browser-Por
 
 > Note: if `npm install` skips Electron's postinstall (strict script policies), run `node install.js` inside `node_modules/electron` once to fetch the binary.
 
-## Project structure
+## Architecture
+
+The renderer follows a **layered, React-Native-style architecture** — declarative
+components, one-way data flow, and a single source of truth — with **zero runtime
+dependencies** (no React/Virtual-DOM shipped to users).
 
 ```
 astarix-browser/
-├── main.js            # Main process: window, menus, downloads, permissions, hardening
-├── preload.js         # Minimal context-bridge API (window controls, downloads, extensions)
-├── renderer/          # UI: index.html, styles.css, app.js, logo.png
+├── main.js                 # Main process: window, menus, downloads, permissions,
+│                           # anti-tamper switches, low-end resource tuning
+├── preload.js              # Minimal context-bridge API
+├── renderer/
+│   ├── core/
+│   │   ├── rn.js           # RN primitives: View / Text / Pressable / mount
+│   │   ├── store.js        # Reactive store + emitter (batched notifications)
+│   │   ├── config.js       # Engines, accents, limits, validators, persistence
+│   │   ├── dom.js          # Lazy element registry (load-order independent)
+│   │   ├── state.js        # Single source of truth + all actions
+│   │   ├── ui.js           # Pure render functions (no side effects)
+│   │   └── panels.js       # Panel/menu orchestration
+│   ├── app.js              # Wiring only — events, subscriptions, boot
+│   ├── index.html
+│   └── styles.css
 ├── scripts/
-│   ├── obfuscate.js   # Staging + JS obfuscation for production builds
-│   └── after-pack.js  # Electron Fuse configuration
-└── docs/              # Project website (GitHub Pages)
+│   ├── obfuscate.js        # Staging + JS obfuscation for production builds
+│   └── after-pack.js       # Electron Fuse configuration
+└── docs/                   # Project website (GitHub Pages)
 ```
+
+**Data flow:** `app.js` wires events → actions in `core/state.js` mutate the store →
+subscribers re-render the pure views in `core/ui.js`. Nothing else touches the DOM.
+
+## Performance on weak systems
+
+Astarix is built to stay usable on low-end PCs:
+
+- **Automatic low-end profile** — on machines with ≤2 CPU cores or ≤4 GB RAM the app
+  switches to a 384 MB heap, a 16 MB disk cache, a single raster thread and
+  disables partial raster / back-forward cache / lazy-frame loading.
+- **Performance mode** (⚙ Settings → Performance) — `Auto` / `On` / `Off`.
+  When active it strips animations, backdrop blur, box shadows and the logo glow,
+  which removes most GPU compositing work on integrated graphics.
+- **Batched rendering** — store notifications are coalesced into one paint per tick.
+- **Capped memory** — max 30 tabs, 200 history entries, 50 downloads, 100 bookmarks.
+- **Lazy panels** — panel contents are rendered only when opened.
+- **Spellcheck, component updates, sync and domain reliability** are disabled.
 
 ## Tech stack
 

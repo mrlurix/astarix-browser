@@ -71,6 +71,15 @@ npm start        # run in development mode</pre>
   <li>Replace the old file. Your profile and settings are kept</li>
 </ol>
 
+<h2 id="low-end-machines">Running on low-end machines</h2>
+<p>Astarix detects weak hardware at launch and trims itself automatically:</p>
+<table>
+<tr><th>Machine</th><th>What changes</th></tr>
+<tr><td>2 cores or less, or 4 GB RAM or less</td><td>384 MB JS heap, 16 MB disk cache, one raster thread, partial raster and back-forward cache disabled</td></tr>
+<tr><td>Everything else</td><td>1024 MB heap, 64 MB cache</td></tr>
+</table>
+<div class="callout info">You can also force it from <a href="settings.html#performance">Settings &rarr; Performance</a>. In Performance mode the interface drops animations, blur and shadows, which is the biggest single win on integrated graphics.</div>
+
 <h2 id="uninstall">Uninstall</h2>
 <pre>del Astarix-Browser-Portable.exe</pre>
 <p>To also wipe your profile (history, bookmarks, settings), delete the data folder:</p>
