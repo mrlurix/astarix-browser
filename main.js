@@ -151,7 +151,10 @@ function applyProcessFlags() {
     app.commandLine.appendSwitch('renderer-process-limit', '2');
     // The utility process (network service) costs ~45 MB on its own. Folding
     // it into the browser process removes a whole process for free.
-    app.commandLine.appendSwitch('enable-features', 'NetworkServiceInProcess');
+    // NOTE: 'NetworkServiceInProcess' was tried here and removed on purpose.
+    // Measured saving was ~1.4 MB (and it did not remove the utility
+    // process), while folding the network service into the browser process
+    // weakens isolation if a renderer is ever compromised. Bad trade.
     app.commandLine.appendSwitch('js-flags', '--max-old-space-size=192 --max-semi-space-size=2');
     appendFeature(base.concat(leanExtra));
   } else {
@@ -445,15 +448,22 @@ async function unloadExtension(record) {
 }
 
 // Shows what an extension wants and waits for an explicit yes.
+function displayText(value, max) {
+  const s = String(value == null ? '' : value).replace(/[\x00-\x1f\x7f]+/g, ' ').trim();
+  return s.length > max ? s.slice(0, max) + '\u2026' : s;
+}
+
 async function askInstallConsent(consent) {
   if (!consent) return true;
   const lines = [];
   if (consent.hosts && consent.hosts.length) {
-    lines.push('It asks to work on EVERY website (' + consent.hosts.join(', ') + ').');
+    const hosts = (consent.hosts || []).map(h => displayText(h, 80));
+    lines.push('It asks to work on EVERY website (' + hosts.join(', ') + ').');
     lines.push('');
   }
   if (consent.notable && consent.notable.length) {
-    lines.push('It also asks for: ' + consent.notable.join(', ') + '.');
+    const notable = (consent.notable || []).map(p => displayText(p, 40));
+    lines.push('It also asks for: ' + notable.join(', ') + '.');
     lines.push('');
   }
   lines.push('Install it anyway?');
@@ -464,7 +474,7 @@ async function askInstallConsent(consent) {
     defaultId: 1,
     cancelId: 1,
     title: 'Extension permissions',
-    message: `"${consent.name}" wants broad access`,
+    message: '"' + displayText(consent.name, 80) + '" wants broad access',
     detail: lines.join('\n'),
   });
   return res.response === 0;
@@ -531,9 +541,12 @@ function loadStoreList() {
     return raw.filter(e => {
       if (!e || !storeClient.isValidExtensionId(e.id)) return false;
       if (typeof e.path !== 'string') return false;
-      // The recorded path must live inside our managed folder; anything else
-      // is discarded rather than loaded.
-      return path.resolve(e.path).startsWith(root);
+        // The recorded path must live inside our managed folder, and it must
+        // be exactly the folder for that id - otherwise a tampered record
+        // could point one extension at another directory, or at a leftover
+        // .staging- folder from an interrupted install.
+        if (!path.resolve(e.path).startsWith(root)) return false;
+        return path.resolve(e.path) === path.resolve(path.join(storeRootDir, e.id));
     }).slice(0, 20);
   } catch (_) { return []; }
 }
