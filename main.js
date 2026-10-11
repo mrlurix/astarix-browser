@@ -70,33 +70,101 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 // -- Resource tuning ------------------------------------------------
-// The app targets weak machines first: background services stay off,
-// caches stay small, and low-end hardware gets an extra-tight budget.
+// Chromium is built for speed on big machines. On a small one that is the
+// wrong trade: the GPU process alone costs ~100 MB and the utility process
+// another ~45 MB, none of which are needed to read a web page.
+//
+// Flags are decided once, before the app is ready, so the memory saver is a
+// launch-time setting driven by a small marker file that the renderer
+// updates when the user toggles Performance mode in Settings.
+
 const os = require('os');
 const totalMemGB = os.totalmem() / (1024 * 1024 * 1024);
 const coreCount = os.cpus().length;
 const LOW_END = coreCount <= 2 || totalMemGB <= 4;
 
-app.commandLine.appendSwitch('disable-component-update');
-app.commandLine.appendSwitch('disable-domain-reliability');
-app.commandLine.appendSwitch('disable-sync');
-app.commandLine.appendSwitch('no-first-run');
-
-if (LOW_END) {
-  // Tight memory + single raster thread: keeps paging down on old CPUs.
-  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=384');
-  app.commandLine.appendSwitch('disk-cache-size', String(16 * 1024 * 1024));
-  app.commandLine.appendSwitch('renderer-process-limit', '1');
-  app.commandLine.appendSwitch('num-raster-threads', '1');
-  app.commandLine.appendSwitch('disable-partial-raster');
-  app.commandLine.appendSwitch('disable-features',
-    'Translate,MediaRouter,CalculateNativeWinOcclusion,BackForwardCache,LazyFrameLoading,ExtensionManifestV2Disabled');
-  console.log('Low-end mode enabled: cores=' + coreCount + ' ram=' + totalMemGB.toFixed(1) + 'GB');
-} else {
-  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=1024');
-  app.commandLine.appendSwitch('disk-cache-size', String(64 * 1024 * 1024));
-  app.commandLine.appendSwitch('disable-features', 'Translate,MediaRouter,CalculateNativeWinOcclusion');
+function memorySaverFile() {
+  return path.join(app.getPath('userData'), 'memory-saver.flag');
 }
+
+function memorySaverEnabled() {
+  try {
+    return fs.existsSync(memorySaverFile());
+  } catch (_) {
+    return false;
+  }
+}
+
+function appendFeature(list) {
+  if (!list.length) return;
+  app.commandLine.appendSwitch('disable-features', list.join(','));
+}
+
+function applyProcessFlags() {
+  const saver = memorySaverEnabled();
+  const lean = saver || LOW_END;
+
+  // Features that cost CPU for no benefit in a small browser.
+  const base = [
+    'Translate',
+    'MediaRouter',
+    'CalculateNativeWinOcclusion',
+    'BackForwardCache',
+    'InterestFeedContentSuggestions',
+    'OptimizationHints',
+    'CertificateTransparencyComponentUpdater',
+    'AutofillServerCommunication',
+    'MediaEngagementBypassAutoplayPolicies',
+    'DialMediaRouteProvider',
+  ];
+  const leanExtra = [
+    'AudioServiceOutOfProcess',
+    'ExtensionManifestV2Disabled',
+    'LazyFrameLoading',
+    'GlobalMediaControls',
+  ];
+
+  app.commandLine.appendSwitch('disable-component-update');
+  app.commandLine.appendSwitch('disable-domain-reliability');
+  app.commandLine.appendSwitch('disable-sync');
+  app.commandLine.appendSwitch('no-first-run');
+  app.commandLine.appendSwitch('disable-background-networking');
+  app.commandLine.appendSwitch('disable-breakpad');
+  app.commandLine.appendSwitch('disable-crash-reporter');
+  app.commandLine.appendSwitch('no-service-autorun');
+  app.commandLine.appendSwitch('no-pings');
+  app.commandLine.appendSwitch('disable-client-side-phishing-detection');
+  app.commandLine.appendSwitch('metrics-recording-only');
+  app.commandLine.appendSwitch('enable-aggressive-domstorage-flushing');
+  app.commandLine.appendSwitch('disk-cache-size', String(lean ? 8 * 1024 * 1024 : 64 * 1024 * 1024));
+  app.commandLine.appendSwitch('media-cache-size', '1');
+  app.commandLine.appendSwitch('num-raster-threads', '1');
+
+  if (lean) {
+    // The single biggest win: the GPU process costs ~100 MB of working set
+    // and is pure overhead for ordinary page rendering.
+    app.commandLine.appendSwitch('disable-gpu');
+    app.commandLine.appendSwitch('disable-gpu-compositing');
+    app.commandLine.appendSwitch('in-process-gpu');
+    app.commandLine.appendSwitch('disable-partial-raster');
+    app.commandLine.appendSwitch('disable-back-forward-cache');
+    app.commandLine.appendSwitch('renderer-process-limit', '2');
+    // The utility process (network service) costs ~45 MB on its own. Folding
+    // it into the browser process removes a whole process for free.
+    app.commandLine.appendSwitch('enable-features', 'NetworkServiceInProcess');
+    app.commandLine.appendSwitch('js-flags', '--max-old-space-size=192 --max-semi-space-size=2');
+    appendFeature(base.concat(leanExtra));
+  } else {
+    app.commandLine.appendSwitch('disable-features', base.join(','));
+    app.commandLine.appendSwitch('js-flags', '--max-old-space-size=1024');
+  }
+
+  console.log('Startup profile: ' + (saver ? 'memory-saver' : LOW_END ? 'low-end' : 'default') +
+    ' cores=' + coreCount + ' ram=' + totalMemGB.toFixed(1) + 'GB');
+}
+
+// Must run before app is ready.
+applyProcessFlags();
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -117,6 +185,19 @@ function createWindow() {
       backgroundThrottling: true,
     },
   });
+
+  // Idle CPU: a page that is not visible should not keep running timers.
+  const setGuestIdle = (idle) => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc.getType() !== 'webview') continue;
+      if (wc.hostWebContents && wc.hostWebContents.id === mainWindow.webContents.id) {
+        try { wc.setBackgroundThrottling(!!idle); } catch (_) {}
+      }
+    }
+  };
+  mainWindow.on('blur', () => setGuestIdle(true));
+  mainWindow.on('focus', () => setGuestIdle(false));
 
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
     callback({ requestHeaders: { ...details.requestHeaders, 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36' } });
@@ -248,6 +329,22 @@ function isTrustedSender(event) {
   if (event.senderFrame && event.senderFrame !== wc.mainFrame) return false;
   return true;
 }
+
+// Performance mode in Settings decides whether the next launch runs the
+// lean profile. Chromium flags can only be set before the app starts, so the
+// choice is stored as a marker file and read on the next launch.
+ipcMain.on('set-memory-saver', (event, on) => {
+  if (!isTrustedSender(event)) return;
+  try {
+    const file = memorySaverFile();
+    if (on) {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, '1', 'utf8');
+    } else {
+      fs.rmSync(file, { force: true });
+    }
+  } catch (_) {}
+});
 
 ipcMain.on('minimize', (event) => { if (isTrustedSender(event)) mainWindow?.minimize(); });
 ipcMain.on('maximize', (event) => {

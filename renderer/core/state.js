@@ -91,6 +91,8 @@ window.Astarix = window.Astarix || {};
       A.dom.omnibox.value = tab.url;
       updateBookmarkBtn(tab.url);
     } else {
+      // A fresh tab: stop showing the previous page and free its memory.
+      unloadWebview();
       A.dom.webview.classList.remove('active');
       A.dom.ntp.classList.add('active');
       A.dom.omnibox.value = '';
@@ -110,6 +112,7 @@ window.Astarix = window.Astarix || {};
     if (el) el.remove();
     if (tabs.length === 0) {
       store.set({ activeTabId: null });
+      unloadWebview();
       A.dom.webview.classList.remove('active');
       A.dom.ntp.classList.add('active');
       A.dom.omnibox.value = '';
@@ -122,6 +125,20 @@ window.Astarix = window.Astarix || {};
 
   function loadWebview(url) {
     try { A.dom.webview.loadURL(url); } catch (_) { A.dom.webview.src = url; }
+  }
+
+  // Drop the live page and park the guest on about:blank so the previous
+  // site releases its renderer memory. Cheap: it is a single about:blank
+  // load and the URL is already stored on the tab.
+  function unloadWebview() {
+    // Already blank: nothing to release, and loading again would only cause
+    // a duplicate navigation event.
+    try {
+      const current = A.dom.webview.getURL();
+      if (current === 'about:blank' || current === '') return;
+    } catch (_) {}
+    try { A.dom.webview.stop(); } catch (_) {}
+    try { A.dom.webview.loadURL('about:blank'); } catch (_) {}
   }
 
   function focusNtpSearch() {
@@ -290,8 +307,18 @@ window.Astarix = window.Astarix || {};
     return { active, cores, mem, low, mode: store.get().settings.perfMode };
   }
 
+  // Tells the main process whether the next launch should use the lean
+  // Chromium profile. Flags can only change at startup, so the user is told
+  // when a restart is required for the choice to take effect.
+  function pushMemorySaver(on) {
+    if (window.electronAPI && window.electronAPI.setMemorySaver) {
+      window.electronAPI.setMemorySaver(!!on);
+    }
+  }
+
   function applyPerfMode(mode) {
     document.body.classList.toggle('perf-lite', perfModeActive(mode));
+    pushMemorySaver(perfModeActive(mode));
     renderPerfBadge();
   }
 
@@ -400,13 +427,20 @@ window.Astarix = window.Astarix || {};
     return el ? el.dataset.url : null;
   }
 
+  // The marker file is written on boot as well as on change: it can be
+  // lost (fresh profile, cleaned user data) while the setting is still "on",
+  // and then the next launch would silently use the heavy profile again.
+  function syncMemorySaver() {
+    pushMemorySaver(perfModeActive(store.get().settings.perfMode));
+  }
+
   A.state = {
     store, persistSettings, persistBookmarks, persistExtensions,
     setEngine, cycleEngine, setZoom, zoomBy,
-    createTab, activateTab, closeTab, navigate, updateTabTitle,
+    createTab, activateTab, closeTab, navigate, updateTabTitle, unloadWebview,
     addHistory, addDownload, completeDownload,
     addBookmark, removeBookmark, toggleBookmark, isBookmarked, updateBookmarkBtn,
-    addExtension, updateSettings, resetSettings, applySettings, applyPerfMode, perfModeActive, perfModeInfo, renderPerfBadge,
+    addExtension, updateSettings, resetSettings, applySettings, applyPerfMode, perfModeActive, pushMemorySaver, syncMemorySaver, perfModeInfo, renderPerfBadge,
     scheduleSuggestions, showSuggestions, hideSuggestions, highlightSuggestion, selectedSuggestion,
     hexToRgba,
   };

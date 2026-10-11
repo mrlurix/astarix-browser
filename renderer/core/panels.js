@@ -16,6 +16,16 @@ window.Astarix = window.Astarix || {};
     settings: () => A.ui.renderSettings(),
   };
 
+  // Rows are rebuilt from the store whenever a panel opens, so there is no
+  // reason to keep them in the DOM while it is closed.
+  function releasePanelContents() {
+    const lists = dom.lists;
+    Object.keys(lists).forEach(key => {
+      const host = lists[key];
+      if (host) host.textContent = '';
+    });
+  }
+
   function openPanel(name) {
     closeMenu();
     const panel = dom.panels[name];
@@ -30,6 +40,7 @@ window.Astarix = window.Astarix || {};
   function closePanel() {
     Object.keys(dom.panels).forEach(k => dom.panels[k].classList.add('hidden'));
     dom.panelOverlay.classList.add('hidden');
+    releasePanelContents();
   }
 
   function toggleMenu() {
@@ -47,6 +58,6 @@ window.Astarix = window.Astarix || {};
     try { dom.webview.setZoomFactor(A.state.store.get().zoom); } catch (_) {}
   }
 
-  A.panels = { openPanel, closePanel, toggleMenu, closeMenu, applyZoom };
+  A.panels = { openPanel, closePanel, toggleMenu, closeMenu, applyZoom, releasePanelContents };
   A.applyZoom = applyZoom;
 })(window.Astarix);

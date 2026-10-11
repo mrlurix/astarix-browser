@@ -202,6 +202,9 @@
     if (v === 'auto' || v === 'on' || v === 'off') {
       state.updateSettings({ perfMode: v });
       ui.renderPerfStatus();
+      if (state.perfModeActive(v)) {
+        ui.setPerfNote('Applies after you restart Astarix.', 'note-restart');
+      }
     }
   });
   on('set-downloads', 'change', (e) => {
@@ -281,6 +284,7 @@
   // ── Boot ───────────────────────────────────────────────────
   ui.renderNtpShortcuts();
   state.applySettings();
+  state.syncMemorySaver();
   if (A.store && A.store.bind) A.store.bind();
 
   // Render tabs reactively (one-way data flow).
