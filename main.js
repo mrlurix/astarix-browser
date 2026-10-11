@@ -2,6 +2,7 @@
 const path = require('path');
 const fs = require('fs');
 const storeClient = require('./lib/store-client');
+const { parseCrx, extractZip } = require('./lib/crx');
 const { screenManifest } = require('./lib/extension-guard');
 
 let mainWindow;
@@ -441,6 +442,55 @@ ipcMain.handle('store-remove', async (event, id) => {
   storeInstalled = storeInstalled.filter(e => e.id !== id);
   persistStoreList();
   return { removed: true, installed: storeList() };
+});
+
+// Installing from a local .crx file. This is the offline path: it works
+// even when the Chrome Web Store itself cannot be reached.
+ipcMain.handle('store-install-file', async (event) => {
+  if (!isTrustedSender(event)) return { error: 'Not allowed' };
+
+  const picked = await dialog.showOpenDialog(mainWindow, {
+    title: 'Select a .crx extension file',
+    properties: ['openFile'],
+    filters: [{ name: 'Chrome extension', extensions: ['crx'] }, { name: 'All files', extensions: ['*'] }],
+  });
+  if (picked.canceled || picked.filePaths.length === 0) return { canceled: true };
+
+  const filePath = picked.filePaths[0];
+  try {
+    const stat = fs.statSync(filePath);
+    if (stat.size > 120 * 1024 * 1024) return { error: 'That file is too large to be an extension package' };
+
+    const buf = fs.readFileSync(filePath);
+    // Derive a stable, valid id from the file name so the install path and
+    // the bookkeeping stay consistent. Never taken from the file contents.
+    const base = path.basename(filePath).replace(/\.crx$/i, '').toLowerCase();
+    const letters = base.replace(/[^a-p]/g, '');
+    let id = letters.slice(0, 32);
+    while (id.length < 32) id += 'a';
+    if (letters.length === 0) id = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
+    const result = storeClient.installFromCrx(id, buf, storeRootDir);
+    if (result.error) return { error: result.error, reason: result.reason };
+
+    try {
+      await session.defaultSession.loadExtension(result.path);
+    } catch (err) {
+      try { fs.rmSync(result.path, { recursive: true, force: true }); } catch (_) {}
+      return { error: 'The extension could not be loaded: ' + err.message };
+    }
+
+    storeInstalled = storeInstalled.filter(e => e.id !== id);
+    storeInstalled.push({
+      id, name: result.name, version: result.version,
+      path: result.path, permissions: result.permissions || [], hosts: result.hosts || [],
+    });
+    persistStoreList();
+
+    return { id, name: result.name, version: result.version, installed: storeList() };
+  } catch (err) {
+    return { error: 'Could not read that file: ' + err.message };
+  }
 });
 
 ipcMain.handle('store-list', (event) => {

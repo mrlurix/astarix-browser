@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // The main process validates it and refuses anything that is not an ID,
   // so the renderer can never point this at an arbitrary host.
   storeInstall: (idOrUrl) => ipcRenderer.invoke('store-install', String(idOrUrl || '').slice(0, 500)),
+  storeInstallFile: () => ipcRenderer.invoke('store-install-file'),
   storeRemove: (id) => ipcRenderer.invoke('store-remove', String(id || '')),
   storeList: () => ipcRenderer.invoke('store-list'),
 });

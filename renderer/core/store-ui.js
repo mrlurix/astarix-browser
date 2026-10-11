@@ -84,8 +84,31 @@ window.Astarix = window.Astarix || {};
     } catch (_) {}
   }
 
+  // Offline path: pick a .crx file from disk. Uses the exact same
+  // parser and screening as a store download.
+  async function installFromFile() {
+    const api = window.electronAPI;
+    if (!api?.storeInstallFile) { setStatus('File installation is unavailable.', 'err'); return; }
+
+    const statusEl = document.getElementById('store-status');
+    const prev = statusEl ? statusEl.textContent : '';
+    setStatus('Choose a .crx file...', 'busy');
+
+    try {
+      const res = await api.storeInstallFile();
+      if (!res || res.canceled) { setStatus(prev || 'Extensions are screened before they run. Broad site access and powerful permissions are blocked.'); return; }
+      if (res.error) { setStatus(res.error, 'err'); return; }
+      if (res.installed) applyList(res.installed);
+      setStatus(res.name ? `Installed ${res.name} from file.` : 'Installed from file.', 'ok');
+    } catch (err) {
+      setStatus('Installation failed: ' + (err && err.message ? err.message : 'unknown error'), 'err');
+    }
+  }
+
   function bind() {
     const btn = document.getElementById('store-install-btn');
+    const fileBtn = document.getElementById('store-file-btn');
+    if (fileBtn) fileBtn.addEventListener('click', installFromFile);
     const input = document.getElementById('store-id-input');
     if (btn) btn.addEventListener('click', () => install(input ? input.value : ''));
     if (input) {
@@ -96,5 +119,5 @@ window.Astarix = window.Astarix || {};
     load();
   }
 
-  A.store = { install, remove, load, bind, setStatus };
+  A.store = { install, installFromFile, remove, load, bind, setStatus };
 })(window.Astarix);

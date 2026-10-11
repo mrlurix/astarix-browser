@@ -280,8 +280,37 @@ window.Astarix = window.Astarix || {};
     return cores <= 2 || mem <= 2;
   }
 
+  // Explains the current mode so the settings panel can tell the user
+  // whether it is actually running, and why.
+  function perfModeInfo() {
+    const cores = navigator.hardwareConcurrency || 2;
+    const mem = navigator.deviceMemory || 4;
+    const low = cores <= 2 || mem <= 2;
+    const active = perfModeActive(store.get().settings.perfMode);
+    return { active, cores, mem, low, mode: store.get().settings.perfMode };
+  }
+
   function applyPerfMode(mode) {
     document.body.classList.toggle('perf-lite', perfModeActive(mode));
+    renderPerfBadge();
+  }
+
+  // A visible marker, because with animations and blur removed the change
+  // is otherwise easy to miss.
+  function renderPerfBadge() {
+    const body = document.body;
+    let badge = document.getElementById('perf-badge');
+    if (!body.classList.contains('perf-lite')) {
+      if (badge) badge.remove();
+      return;
+    }
+    if (!badge) {
+      badge = document.createElement('div');
+      badge.id = 'perf-badge';
+      badge.textContent = 'Lite mode';
+      badge.title = 'Animations, blur and shadows are disabled to reduce CPU and GPU usage.';
+      document.body.appendChild(badge);
+    }
   }
   function hexToRgba(hex, alpha) {
     const h = String(hex || '').replace('#', '');
@@ -377,7 +406,7 @@ window.Astarix = window.Astarix || {};
     createTab, activateTab, closeTab, navigate, updateTabTitle,
     addHistory, addDownload, completeDownload,
     addBookmark, removeBookmark, toggleBookmark, isBookmarked, updateBookmarkBtn,
-    addExtension, updateSettings, resetSettings, applySettings, applyPerfMode, perfModeActive,
+    addExtension, updateSettings, resetSettings, applySettings, applyPerfMode, perfModeActive, perfModeInfo, renderPerfBadge,
     scheduleSuggestions, showSuggestions, hideSuggestions, highlightSuggestion, selectedSuggestion,
     hexToRgba,
   };

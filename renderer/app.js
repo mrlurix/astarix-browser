@@ -199,7 +199,10 @@
   });
   on('set-perf', 'change', (e) => {
     const v = e.target.value;
-    if (v === 'auto' || v === 'on' || v === 'off') state.updateSettings({ perfMode: v });
+    if (v === 'auto' || v === 'on' || v === 'off') {
+      state.updateSettings({ perfMode: v });
+      ui.renderPerfStatus();
+    }
   });
   on('set-downloads', 'change', (e) => {
     const v = e.target.value.trim().slice(0, 260);

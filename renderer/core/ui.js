@@ -234,11 +234,29 @@ window.Astarix = window.Astarix || {};
     set('set-zoom', String(s.zoom));
     set('set-downloads', s.downloadsDir);
     set('set-perf', s.perfMode);
+    renderPerfStatus();
     document.querySelectorAll('#set-accent-row .swatch').forEach(b =>
       b.classList.toggle('active', b.dataset.accent === s.accent));
   }
 
+  // Tells the user whether performance mode is actually running.
+  function renderPerfStatus() {
+    const el = document.getElementById('set-perf-status');
+    if (!el || !A.state.perfModeInfo) return;
+    const info = A.state.perfModeInfo();
+    el.classList.remove('on', 'off');
+    if (info.active) {
+      el.classList.add('on');
+      el.textContent = 'Active now - animations, blur and shadows are disabled to reduce CPU and GPU usage.';
+    } else {
+      el.classList.add('off');
+      el.textContent = 'Not active on this machine (detected ' + info.cores +
+        ' CPU cores, ' + info.mem + ' GB RAM). Choose "On" to force it.';
+    }
+  }
+
   A.ui = {
+    renderPerfStatus,
     renderTabsBar, updateTabTitleView, renderNtpShortcuts,
     renderHistory, renderDownloads, renderBookmarks, renderExtensions, renderSettings,
   };
