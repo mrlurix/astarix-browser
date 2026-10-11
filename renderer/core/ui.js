@@ -158,14 +158,65 @@ window.Astarix = window.Astarix || {};
     });
   }
 
-  function renderExtensions() {
+  // Store extensions carry an id so they can be removed later.
+  function renderStoreExtensions() {
     const host = A.dom.lists.extensions;
-    const list = A.state.store.get().extensions;
-    if (!list.length) return emptyState(host, 'No extensions loaded');
+    const local = A.state.store.get().extensions;
+    const store = A.state.store.get().storeExtensions || [];
+    if (!local.length && !store.length) return emptyState(host, 'No extensions loaded');
+
     host.textContent = '';
-    list.forEach(e => {
+
+    store.forEach(e => {
+      const div = document.createElement('div');
+      div.className = 'ext-row';
+
+      const ic = document.createElement('div');
+      ic.className = 'hi-icon';
+      ic.textContent = '🧩';
+
+      const info = document.createElement('div');
+      info.className = 'hi-info';
+
+      const name = document.createElement('div');
+      name.className = 'hi-title';
+      name.textContent = e.name;
+
+      const meta = document.createElement('div');
+      meta.className = 'ext-meta';
+      const bits = [];
+      if (e.version) bits.push('v' + e.version);
+      if (e.hosts && e.hosts.length) bits.push(e.hosts.join(', '));
+      if (e.permissions && e.permissions.length) bits.push(e.permissions.join(', '));
+      meta.textContent = bits.length ? bits.join('  •  ') : 'Chrome Web Store';
+
+      info.appendChild(name);
+      info.appendChild(meta);
+
+      const rm = document.createElement('button');
+      rm.className = 'ext-remove';
+      rm.textContent = 'Remove';
+      rm.addEventListener('click', async (ev) => {
+        ev.stopPropagation();
+        rm.disabled = true;
+        rm.textContent = '...';
+        const res = await A.store.remove(e.id);
+        if (res && res.error) { rm.disabled = false; rm.textContent = 'Remove'; return; }
+      });
+
+      div.appendChild(ic);
+      div.appendChild(info);
+      div.appendChild(rm);
+      host.appendChild(div);
+    });
+
+    local.forEach(e => {
       host.appendChild(row({ text: '🧩' }, e.name, e.path));
     });
+  }
+
+  function renderExtensions() {
+    renderStoreExtensions();
   }
 
   // ── Settings form sync ─────────────────────────────────────

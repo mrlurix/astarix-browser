@@ -1,6 +1,8 @@
 ﻿const { app, BrowserWindow, session, ipcMain, dialog, webContents, Menu, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const storeClient = require('./lib/store-client');
+const { screenManifest } = require('./lib/extension-guard');
 
 let mainWindow;
 // A single pending save path was a race: any other download that started in
@@ -8,6 +10,11 @@ let mainWindow;
 // expires quickly, so an unrelated download can never be written there.
 let pendingSave = null; // { path, url, ts }
 let customDownloadsDir = '';
+
+// Chrome Web Store extensions are unpacked into our own app-data folder and
+// remembered here so they can be re-loaded on the next launch.
+const storeRootDir = path.join(app.getPath('userData'), 'store-extensions');
+let storeInstalled = [];
 
 const blockedSwitches = [
   'remote-debugging-port',
@@ -297,51 +304,148 @@ ipcMain.handle('load-extension', async (event) => {
     const stat = fs.statSync(manifestPath);
     if (stat.size > 100000) return { error: 'manifest.json too large' };
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    const permissions = Array.isArray(manifest.permissions) ? manifest.permissions : [];
-    const hostPerms = Array.isArray(manifest.host_permissions) ? manifest.host_permissions : [];
-    const optPerms = Array.isArray(manifest.optional_permissions) ? manifest.optional_permissions : [];
-    const optHostPerms = Array.isArray(manifest.optional_host_permissions) ? manifest.optional_host_permissions : [];
-    const allPerms = [...permissions, ...hostPerms, ...optPerms, ...optHostPerms];
-    // Permissions are compared case-insensitively on the trimmed value: an
-    // exact-match deny-list is trivially bypassed with "NativeMessaging".
-    const dangerousPerms = new Set([
-      'nativemessaging', 'webrequestblocking', 'proxy', 'debugger', 'management',
-      'browsingdata', 'privacy', 'cookies', 'downloads', 'declarativenetrequest',
-      'declarativenetrequestwithhostaccess', 'systemdisplay', 'webnfc',
-      'backgroundsync', 'clipboardread', 'identity', 'sessions', 'topsites',
-      'webnavigation', 'tabcapture', 'desktopcapture', 'pagecapture',
-    ]);
-    const norm = (v) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
-    const permsNormalized = allPerms.map(norm).filter(Boolean);
 
-    if (permsNormalized.some(p => dangerousPerms.has(p))) {
-      return { error: 'Extension requests dangerous permissions and was blocked' };
-    }
+    // Shared screening: identical rules for local folders and store installs.
+    const screened = screenManifest(manifest);
+    if (!screened.ok) return { error: screened.error, reason: screened.reason };
 
-    // Broad host access: any scheme wildcard that reaches every origin.
-    const broad = (p) =>
-      p === '<all_urls>' || p === '*' ||
-      /^\*?:\/\/\*(\/\*)?$/.test(p) ||
-      /^(file|ftp|ws|wss):\/\/\*(\/\*)?$/.test(p) ||
-      /^\*:\/\*\/\*$/.test(p);
-    if (permsNormalized.some(broad)) {
-      return { error: 'Extension requests overly broad host permissions and was blocked' };
-    }
-
-    const contentScripts = Array.isArray(manifest.content_scripts) ? manifest.content_scripts : [];
-    for (const cs of contentScripts) {
-      const matches = (Array.isArray(cs.matches) ? cs.matches : []).map(norm).filter(Boolean);
-      if (matches.some(broad)) {
-        return { error: 'Extension content scripts request overly broad host access and was blocked' };
-      }
-    }
-
-    if (typeof manifest.name === 'string' && manifest.name.length > 100) manifest.name = manifest.name.slice(0, 100);
+    const name = typeof manifest.name === 'string' ? manifest.name.slice(0, 100) : 'Unnamed Extension';
     await session.defaultSession.loadExtension(extPath);
     return { name: (typeof manifest.name === 'string' ? manifest.name : 'Unnamed Extension'), path: extPath };
   } catch (err) {
     return { error: err.message };
   }
+});
+
+// ── Chrome Web Store ─────────────────────────────────────────
+function storeListFile() {
+  return path.join(app.getPath('userData'), 'store-extensions.json');
+}
+
+// Persisted as a plain list of records; anything unexpected is dropped so a
+// corrupted file can never stop the app from starting.
+function persistStoreList() {
+  try {
+    const clean = storeInstalled
+      .filter(e => e && typeof e.id === 'string' && storeClient.isValidExtensionId(e.id))
+      .map(e => ({
+        id: e.id, name: String(e.name || '').slice(0, 100),
+        version: String(e.version || '').slice(0, 20),
+        path: String(e.path || '').slice(0, 400),
+        permissions: Array.isArray(e.permissions) ? e.permissions.slice(0, 30).map(p => String(p).slice(0, 40)) : [],
+        hosts: Array.isArray(e.hosts) ? e.hosts.slice(0, 30).map(p => String(p).slice(0, 120)) : [],
+      }));
+    fs.writeFileSync(storeListFile(), JSON.stringify(clean), 'utf8');
+  } catch (_) {}
+}
+
+function loadStoreList() {
+  try {
+    const raw = JSON.parse(fs.readFileSync(storeListFile(), 'utf8'));
+    if (!Array.isArray(raw)) return [];
+    const root = path.resolve(storeRootDir) + path.sep;
+    return raw.filter(e => {
+      if (!e || !storeClient.isValidExtensionId(e.id)) return false;
+      if (typeof e.path !== 'string') return false;
+      // The recorded path must live inside our managed folder; anything else
+      // is discarded rather than loaded.
+      return path.resolve(e.path).startsWith(root);
+    }).slice(0, 20);
+  } catch (_) { return []; }
+}
+
+// Re-load previously installed store extensions at startup, re-screening
+// each one first so a tampered-on-disk extension cannot slip in.
+async function restoreStoreExtensions() {
+  const saved = loadStoreList();
+  const restored = [];
+  for (const record of saved) {
+    try {
+      const manifest = storeClient.readManifest(record.path);
+      const screened = screenManifest(manifest);
+      if (!screened.ok) continue;
+      await session.defaultSession.loadExtension(record.path);
+      restored.push(record);
+    } catch (_) {}
+  }
+  storeInstalled = restored;
+}
+
+
+// The renderer may only ever pass an extension ID (or a Web Store URL
+// containing one). It can never supply a URL, so this endpoint cannot be
+// abused to fetch arbitrary hosts.
+
+function storeList() {
+  return storeInstalled.map(e => ({
+    id: e.id,
+    name: e.name,
+    version: e.version,
+    permissions: e.permissions || [],
+    hosts: e.hosts || [],
+  }));
+}
+
+ipcMain.handle('store-install', async (event, input) => {
+  if (!isTrustedSender(event)) return { error: 'Not allowed' };
+
+  const id = storeClient.extractId(input);
+  if (!id) return { error: 'That does not look like a Chrome Web Store extension ID or link.' };
+
+  let crxBuf;
+  try {
+    crxBuf = await storeClient.downloadCrx(id);
+  } catch (err) {
+    return { error: err.message };
+  }
+
+  // Unpack + screen. Nothing is loaded until the manifest passes.
+  const result = storeClient.installFromCrx(id, crxBuf, storeRootDir);
+  if (result.error) return { error: result.error, reason: result.reason };
+
+  try {
+    await session.defaultSession.loadExtension(result.path);
+  } catch (err) {
+    try { fs.rmSync(result.path, { recursive: true, force: true }); } catch (_) {}
+    return { error: 'The extension could not be loaded: ' + err.message };
+  }
+
+  storeInstalled = storeInstalled.filter(e => e.id !== id);
+  storeInstalled.push({
+    id, name: result.name, version: result.version,
+    path: result.path, permissions: result.permissions || [], hosts: result.hosts || [],
+  });
+  persistStoreList();
+
+  return { id, name: result.name, version: result.version, installed: storeList() };
+});
+
+ipcMain.handle('store-remove', async (event, id) => {
+  if (!isTrustedSender(event)) return { error: 'Not allowed' };
+  if (!storeClient.isValidExtensionId(id)) return { error: 'Invalid extension ID' };
+
+  const record = storeInstalled.find(e => e.id === id);
+  if (!record) return { removed: false, installed: storeList() };
+
+  try {
+    const ext = session.defaultSession.getExtension(id);
+    if (ext) await ext.remove();
+  } catch (_) {}
+
+  // Only ever delete inside our own managed folder.
+  const target = path.join(storeRootDir, id);
+  if (path.resolve(target).startsWith(path.resolve(storeRootDir) + path.sep)) {
+    try { fs.rmSync(target, { recursive: true, force: true }); } catch (_) {}
+  }
+
+  storeInstalled = storeInstalled.filter(e => e.id !== id);
+  persistStoreList();
+  return { removed: true, installed: storeList() };
+});
+
+ipcMain.handle('store-list', (event) => {
+  if (!isTrustedSender(event)) return [];
+  return storeList();
 });
 
 app.whenReady().then(() => {
@@ -395,7 +499,9 @@ app.whenReady().then(() => {
     });
   });
 
-  createWindow();
+  restoreStoreExtensions()
+    .catch(() => { storeInstalled = []; })
+    .finally(() => createWindow());
 });
 
 app.on('window-all-closed', () => {

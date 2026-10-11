@@ -23,6 +23,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "lib/*.js",
       "renderer/**/*"
     ],
     "directories": {

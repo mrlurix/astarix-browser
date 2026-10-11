@@ -813,3 +813,76 @@ body.perf-lite .nav-btn:active,
 body.perf-lite .win-btn { transform: none; }
 body.perf-lite .shortcut:hover,
 body.perf-lite .sc-icon { box-shadow: none !important; }
+
+/* -- Extension store box ------------------------------------ */
+.ext-store {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+.ext-store-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 9px;
+}
+.ext-store-row { display: flex; gap: 6px; }
+.ext-store-row input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+  font-size: 12px;
+  outline: none;
+}
+.ext-store-row input:focus {
+  border-color: var(--border-active);
+  box-shadow: 0 0 0 2px var(--purple-subtle);
+}
+.ext-store-btn {
+  background: var(--purple-brand);
+  border: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ext-store-btn:hover { background: var(--purple-vibrant); }
+.ext-store-btn:disabled { opacity: 0.55; cursor: default; }
+.ext-store-note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  margin-top: 9px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.ext-store-note.ok { color: var(--green, #2ecc71); }
+.ext-store-note.err { color: #ef4444; }
+.ext-store-note.busy { color: var(--purple-soft); }
+
+/* Installed store extension row */
+.ext-row { display: flex; align-items: flex-start; gap: 9px; padding: 8px 10px; border-radius: 6px; margin-bottom: 1px; }
+.ext-row:hover { background: var(--bg-tertiary); }
+.ext-row .hi-info { flex: 1; overflow: hidden; }
+.ext-row .ext-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; word-break: break-word; }
+.ext-remove {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 5px;
+  font-size: 11px;
+  padding: 3px 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.ext-remove:hover { color: #ef4444; border-color: rgba(239, 68, 68, 0.4); }

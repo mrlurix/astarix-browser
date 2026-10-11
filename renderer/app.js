@@ -278,6 +278,7 @@
   // ── Boot ───────────────────────────────────────────────────
   ui.renderNtpShortcuts();
   state.applySettings();
+  if (A.store && A.store.bind) A.store.bind();
 
   // Render tabs reactively (one-way data flow).
   let lastTabsSig = '';

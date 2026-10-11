@@ -61,6 +61,10 @@ obfuscateFile(path.join(staging, 'renderer', 'core', 'dom.js'));
 obfuscateFile(path.join(staging, 'renderer', 'core', 'state.js'));
 obfuscateFile(path.join(staging, 'renderer', 'core', 'ui.js'));
 obfuscateFile(path.join(staging, 'renderer', 'core', 'panels.js'));
+obfuscateFile(path.join(staging, 'renderer', 'core', 'store-ui.js'));
+obfuscateFile(path.join(staging, 'lib', 'extension-guard.js'));
+obfuscateFile(path.join(staging, 'lib', 'crx.js'));
+obfuscateFile(path.join(staging, 'lib', 'store-client.js'));
 
 try {
   fs.symlinkSync(path.join(root, 'node_modules'), path.join(staging, 'node_modules'), 'junction');

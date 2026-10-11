@@ -11,4 +11,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadExtension: () => ipcRenderer.invoke('load-extension'),
   onOpenUrl: (cb) => ipcRenderer.on('open-url', (_e, url) => cb(url)),
   setDownloadsFolder: (dir) => ipcRenderer.send('set-downloads-folder', dir),
+
+  // Chrome Web Store: the argument is an extension ID or a Web Store URL.
+  // The main process validates it and refuses anything that is not an ID,
+  // so the renderer can never point this at an arbitrary host.
+  storeInstall: (idOrUrl) => ipcRenderer.invoke('store-install', String(idOrUrl || '').slice(0, 500)),
+  storeRemove: (id) => ipcRenderer.invoke('store-remove', String(id || '')),
+  storeList: () => ipcRenderer.invoke('store-list'),
 });

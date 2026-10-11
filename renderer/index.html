@@ -85,11 +85,21 @@
 
   <div id="extensions-panel" class="side-panel hidden">
     <div class="panel-header"><span class="panel-title">Extensions</span><button class="panel-close" id="extensions-close">✕</button></div>
-    <div class="panel-body" id="extensions-list">
-      <div class="panel-empty">No extensions loaded</div>
+    <div class="panel-body">
+      <div class="ext-store">
+        <div class="ext-store-title">Install from Chrome Web Store</div>
+        <div class="ext-store-row">
+          <input type="text" id="store-id-input" placeholder="Paste an extension ID or store link" spellcheck="false" autocomplete="off">
+          <button class="ext-store-btn" id="store-install-btn">Install</button>
+        </div>
+        <div class="ext-store-note" id="store-status">Extensions are screened before they run. Broad site access and powerful permissions are blocked.</div>
+      </div>
+      <div id="extensions-list">
+        <div class="panel-empty">No extensions loaded</div>
+      </div>
     </div>
     <div class="panel-footer" style="display:flex;gap:6px">
-      <button class="panel-btn" id="ext-load-btn">Load Extension</button>
+      <button class="panel-btn" id="ext-load-btn">Load from Folder</button>
     </div>
   </div>
 
@@ -217,6 +227,7 @@
   <script src="core/state.js"></script>
   <script src="core/ui.js"></script>
   <script src="core/panels.js"></script>
+  <script src="core/store-ui.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

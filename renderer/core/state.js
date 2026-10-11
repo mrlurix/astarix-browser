@@ -16,6 +16,7 @@ window.Astarix = window.Astarix || {};
     downloads: [],
     bookmarks: C.readStoredArray('astarix-bookmarks',
       b => b && C.isValidHttpUrl(b.url), C.LIMITS.MAX_BOOKMARKS),
+    storeExtensions: [],
     extensions: C.readStoredArray('astarix-extensions',
       e => e && typeof e.name === 'string' && typeof e.path === 'string', C.LIMITS.MAX_EXTENSIONS),
     settings: C.sanitizeSettings(C.safeParseJSON(localStorage.getItem('astarix-settings'), {})),
