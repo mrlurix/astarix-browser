@@ -307,8 +307,13 @@ ipcMain.handle('load-extension', async (event) => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
     // Shared screening: identical rules for local folders and store installs.
+    // Folder loader follows the same tiers as the store.
     const screened = screenManifest(manifest);
     if (!screened.ok) return { error: screened.error, reason: screened.reason };
+    if (screened.needsConsent) {
+      const approved = await askInstallConsent(screened.consent);
+      if (!approved) return { canceled: true };
+    }
 
     const name = typeof manifest.name === 'string' ? manifest.name.slice(0, 100) : 'Unnamed Extension';
     await session.defaultSession.loadExtension(extPath);
@@ -319,6 +324,87 @@ ipcMain.handle('load-extension', async (event) => {
 });
 
 // ── Chrome Web Store ─────────────────────────────────────────
+// Installs are serialised: clicking Install twice, or installing while the
+// startup restore is still running, can no longer make two writes race over
+// the same folder (which surfaced as "EEXIST: ... mkdir ...").
+let installQueue = Promise.resolve();
+function enqueueInstall(task) {
+  const next = installQueue.then(task, task);
+  // Keep the chain alive even when a task rejects.
+  installQueue = next.then(() => {}, () => {});
+  return next;
+}
+
+// Electron assigns its own extension id (derived from the manifest key or
+// the path), so the id we get back is the one that must be used to unload it.
+// Storing the store id here would make removal silently do nothing.
+async function unloadExtension(record) {
+  if (!record || !record.extId) return;
+  try {
+    if (session.defaultSession.getExtension(record.extId)) {
+      await session.defaultSession.removeExtension(record.extId);
+    }
+  } catch (_) {}
+}
+
+// Shows what an extension wants and waits for an explicit yes.
+async function askInstallConsent(consent) {
+  if (!consent) return true;
+  const lines = [];
+  if (consent.hosts && consent.hosts.length) {
+    lines.push('It asks to work on EVERY website (' + consent.hosts.join(', ') + ').');
+    lines.push('');
+  }
+  if (consent.notable && consent.notable.length) {
+    lines.push('It also asks for: ' + consent.notable.join(', ') + '.');
+    lines.push('');
+  }
+  lines.push('Install it anyway?');
+
+  const res = await dialog.showMessageBox(mainWindow, {
+    type: 'warning',
+    buttons: ['Install', 'Cancel'],
+    defaultId: 1,
+    cancelId: 1,
+    title: 'Extension permissions',
+    message: `"${consent.name}" wants broad access`,
+    detail: lines.join('\n'),
+  });
+  return res.response === 0;
+}
+
+// Completes an install once the user has approved it.
+async function finishStoreInstall(id, crxBuf, allowBroad) {
+  await unloadExtension(storeInstalled.find(e => e.id === id));
+  const result = storeClient.installFromCrx(id, crxBuf, storeRootDir, { allowBroadHost: allowBroad });
+  if (result.error) return { error: result.error, reason: result.reason };
+  if (result.needsConsent) return { needsConsent: true, consent: result.consent };
+
+  try {
+    const loaded = await session.defaultSession.loadExtension(result.path);
+    rememberExtension(id, result, loaded);
+  } catch (err) {
+    try { fs.rmSync(result.path, { recursive: true, force: true }); } catch (_) {}
+    return { error: 'The extension could not be loaded: ' + err.message };
+  }
+  return { id, name: result.name, version: result.version, installed: storeList() };
+}
+
+function rememberExtension(id, info, loaded) {
+  storeInstalled = storeInstalled.filter(e => e.id !== id);
+  storeInstalled.push({
+    id,
+    name: info.name,
+    version: info.version,
+    path: info.path,
+    extId: loaded && loaded.id ? loaded.id : '',
+    permissions: info.permissions || [],
+    hosts: info.hosts || [],
+  });
+  persistStoreList();
+}
+
+
 function storeListFile() {
   return path.join(app.getPath('userData'), 'store-extensions.json');
 }
@@ -365,8 +451,8 @@ async function restoreStoreExtensions() {
       const manifest = storeClient.readManifest(record.path);
       const screened = screenManifest(manifest);
       if (!screened.ok) continue;
-      await session.defaultSession.loadExtension(record.path);
-      restored.push(record);
+      const loaded = await session.defaultSession.loadExtension(record.path);
+      restored.push(Object.assign({}, record, { extId: loaded && loaded.id ? loaded.id : record.extId }));
     } catch (_) {}
   }
   storeInstalled = restored;
@@ -382,8 +468,8 @@ function storeList() {
     id: e.id,
     name: e.name,
     version: e.version,
-    permissions: e.permissions || [],
-    hosts: e.hosts || [],
+    permissions: (e.permissions || []).slice(0, 20),
+    hosts: (e.hosts || []).slice(0, 20),
   }));
 }
 
@@ -393,104 +479,86 @@ ipcMain.handle('store-install', async (event, input) => {
   const id = storeClient.extractId(input);
   if (!id) return { error: 'That does not look like a Chrome Web Store extension ID or link.' };
 
-  let crxBuf;
-  try {
-    crxBuf = await storeClient.downloadCrx(id);
-  } catch (err) {
-    return { error: err.message };
-  }
+  return enqueueInstall(async () => {
+    let crxBuf;
+    try {
+      crxBuf = await storeClient.downloadCrx(id);
+    } catch (err) {
+      return { error: err.message };
+    }
 
-  // Unpack + screen. Nothing is loaded until the manifest passes.
-  const result = storeClient.installFromCrx(id, crxBuf, storeRootDir);
-  if (result.error) return { error: result.error, reason: result.reason };
-
-  try {
-    await session.defaultSession.loadExtension(result.path);
-  } catch (err) {
-    try { fs.rmSync(result.path, { recursive: true, force: true }); } catch (_) {}
-    return { error: 'The extension could not be loaded: ' + err.message };
-  }
-
-  storeInstalled = storeInstalled.filter(e => e.id !== id);
-  storeInstalled.push({
-    id, name: result.name, version: result.version,
-    path: result.path, permissions: result.permissions || [], hosts: result.hosts || [],
+    // First pass: unpack + screen. Nothing is loaded until it passes.
+    let probe = storeClient.installFromCrx(id, crxBuf, storeRootDir);
+    if (probe.error) return { error: probe.error, reason: probe.reason };
+    if (probe.needsConsent) {
+      const approved = await askInstallConsent(probe.consent);
+      if (!approved) return { canceled: true };
+    }
+    return finishStoreInstall(id, crxBuf, true);
   });
-  persistStoreList();
-
-  return { id, name: result.name, version: result.version, installed: storeList() };
 });
 
 ipcMain.handle('store-remove', async (event, id) => {
   if (!isTrustedSender(event)) return { error: 'Not allowed' };
   if (!storeClient.isValidExtensionId(id)) return { error: 'Invalid extension ID' };
 
-  const record = storeInstalled.find(e => e.id === id);
-  if (!record) return { removed: false, installed: storeList() };
+  return enqueueInstall(async () => {
+    const record = storeInstalled.find(e => e.id === id);
+    if (!record) return { removed: false, installed: storeList() };
 
-  try {
-    const ext = session.defaultSession.getExtension(id);
-    if (ext) await ext.remove();
-  } catch (_) {}
+    // Electron keeps the extension registered until it is removed, and it
+    // must be addressed by the id Electron assigned (not the store id).
+    await unloadExtension(record);
 
-  // Only ever delete inside our own managed folder.
-  const target = path.join(storeRootDir, id);
-  if (path.resolve(target).startsWith(path.resolve(storeRootDir) + path.sep)) {
-    try { fs.rmSync(target, { recursive: true, force: true }); } catch (_) {}
-  }
+    // Only ever delete inside our own managed folder.
+    const target = path.join(storeRootDir, id);
+    if (path.resolve(target).startsWith(path.resolve(storeRootDir) + path.sep)) {
+      try { fs.rmSync(target, { recursive: true, force: true }); } catch (_) {}
+    }
 
-  storeInstalled = storeInstalled.filter(e => e.id !== id);
-  persistStoreList();
-  return { removed: true, installed: storeList() };
+    storeInstalled = storeInstalled.filter(e => e.id !== id);
+    persistStoreList();
+    return { removed: true, installed: storeList() };
+  });
 });
 
-// Installing from a local .crx file. This is the offline path: it works
-// even when the Chrome Web Store itself cannot be reached.
 ipcMain.handle('store-install-file', async (event) => {
   if (!isTrustedSender(event)) return { error: 'Not allowed' };
 
-  const picked = await dialog.showOpenDialog(mainWindow, {
-    title: 'Select a .crx extension file',
-    properties: ['openFile'],
-    filters: [{ name: 'Chrome extension', extensions: ['crx'] }, { name: 'All files', extensions: ['*'] }],
-  });
-  if (picked.canceled || picked.filePaths.length === 0) return { canceled: true };
+  return enqueueInstall(async () => {
+    const picked = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select a .crx extension file',
+      properties: ['openFile'],
+      filters: [{ name: 'Chrome extension', extensions: ['crx'] }, { name: 'All files', extensions: ['*'] }],
+    });
+    if (picked.canceled || picked.filePaths.length === 0) return { canceled: true };
 
-  const filePath = picked.filePaths[0];
-  try {
-    const stat = fs.statSync(filePath);
-    if (stat.size > 120 * 1024 * 1024) return { error: 'That file is too large to be an extension package' };
+    const filePath = picked.filePaths[0];
+    let buf;
+    try {
+      const stat = fs.statSync(filePath);
+      if (stat.size > 120 * 1024 * 1024) return { error: 'That file is too large to be an extension package' };
+      buf = fs.readFileSync(filePath);
+    } catch (err) {
+      return { error: 'Could not read that file: ' + err.message };
+    }
 
-    const buf = fs.readFileSync(filePath);
-    // Derive a stable, valid id from the file name so the install path and
-    // the bookkeeping stay consistent. Never taken from the file contents.
+    // Derive a stable, valid id from the file name so the install path and the
+    // bookkeeping stay consistent. Never taken from the file contents.
     const base = path.basename(filePath).replace(/\.crx$/i, '').toLowerCase();
     const letters = base.replace(/[^a-p]/g, '');
     let id = letters.slice(0, 32);
     while (id.length < 32) id += 'a';
     if (letters.length === 0) id = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
-    const result = storeClient.installFromCrx(id, buf, storeRootDir);
-    if (result.error) return { error: result.error, reason: result.reason };
-
-    try {
-      await session.defaultSession.loadExtension(result.path);
-    } catch (err) {
-      try { fs.rmSync(result.path, { recursive: true, force: true }); } catch (_) {}
-      return { error: 'The extension could not be loaded: ' + err.message };
+    const probe = storeClient.installFromCrx(id, buf, storeRootDir);
+    if (probe.error) return { error: probe.error, reason: probe.reason };
+    if (probe.needsConsent) {
+      const approved = await askInstallConsent(probe.consent);
+      if (!approved) return { canceled: true };
     }
-
-    storeInstalled = storeInstalled.filter(e => e.id !== id);
-    storeInstalled.push({
-      id, name: result.name, version: result.version,
-      path: result.path, permissions: result.permissions || [], hosts: result.hosts || [],
-    });
-    persistStoreList();
-
-    return { id, name: result.name, version: result.version, installed: storeList() };
-  } catch (err) {
-    return { error: 'Could not read that file: ' + err.message };
-  }
+    return finishStoreInstall(id, buf, true);
+  });
 });
 
 ipcMain.handle('store-list', (event) => {

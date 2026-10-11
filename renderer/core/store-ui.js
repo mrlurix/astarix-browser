@@ -65,6 +65,14 @@ window.Astarix = window.Astarix || {};
         setStatus(res.error, 'err');
         return;
       }
+      if (res && res.canceled) {
+        setStatus('Installation cancelled. Nothing was installed.');
+        return;
+      }
+      if (res && res.needsConsent) {
+        setStatus('This extension needs broad access, which was not granted.', 'err');
+        return;
+      }
       if (res && res.installed) applyList(res.installed);
       setStatus(res && res.name ? `Installed ${res.name}.` : 'Installed.', 'ok');
       if (inputEl) inputEl.value = '';
@@ -98,6 +106,7 @@ window.Astarix = window.Astarix || {};
       const res = await api.storeInstallFile();
       if (!res || res.canceled) { setStatus(prev || 'Extensions are screened before they run. Broad site access and powerful permissions are blocked.'); return; }
       if (res.error) { setStatus(res.error, 'err'); return; }
+      if (res.needsConsent) { setStatus('This extension needs broad access, which was not granted.', 'err'); return; }
       if (res.installed) applyList(res.installed);
       setStatus(res.name ? `Installed ${res.name} from file.` : 'Installed from file.', 'ok');
     } catch (err) {
